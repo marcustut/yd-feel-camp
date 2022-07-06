@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "pnpm check && vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json"
   },
@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "firebase": "^9.8.4",
+    "svelte-local-storage-store": "^0.2.6",
     "svelte-spa-router": "^3.2.0",
     "zod": "^3.17.3"
   }

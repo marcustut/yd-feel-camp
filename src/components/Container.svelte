@@ -10,5 +10,7 @@
     className
   )}
 >
-  <slot />
+  <div class="artboard phone-1 prose">
+    <slot />
+  </div>
 </main>
