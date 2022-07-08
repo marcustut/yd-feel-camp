@@ -20,6 +20,14 @@
   let modalOpen = false;
   let gameStart: boolean | undefined = undefined;
 
+  const groupRef = doc(
+    firestore,
+    "cyc-young-dreamer",
+    "feel-camp",
+    "groups",
+    params.id
+  );
+
   const handleContinue = async () => {
     if ($group.joined.find((p) => p === $user.name) !== undefined) {
       alert("Name already taken!");
@@ -35,18 +43,12 @@
       return;
     }
 
-    await updateDoc(
-      doc(firestore, "cyc-young-dreamer", "feel-camp", "groups", params.id),
-      { joined: arrayUnion($user.name) }
-    );
+    await updateDoc(groupRef, { joined: arrayUnion($user.name) });
     modalOpen = false;
   };
 
   const handleLeaveRoom = () => {
-    updateDoc(
-      doc(firestore, "cyc-young-dreamer", "feel-camp", "groups", params.id),
-      { joined: arrayRemove($user.name) }
-    );
+    updateDoc(groupRef, { joined: arrayRemove($user.name) });
   };
 
   const handleGameStart = async () => {
@@ -60,37 +62,40 @@
       else goodCount--;
     }
 
+    // assign good players
+    for (let i = 0; i < goodCount; i++) {
+      const idx = goodCount - i - 1;
+      // make zoe leong imposter
+      if ($group.joined[idx].toLowerCase().trim() === "zoe leong") {
+        await updateDoc(groupRef, {
+          bad: arrayUnion($group.joined[idx]),
+          joined: arrayRemove($group.joined[idx]),
+        });
+        badCount--;
+        goodCount++;
+        continue;
+      }
+      await updateDoc(groupRef, {
+        good: arrayUnion($group.joined[idx]),
+        joined: arrayRemove($group.joined[idx]),
+      });
+    }
     // assign bad players
     for (let i = 0; i < badCount; i++)
-      await updateDoc(
-        doc(firestore, "cyc-young-dreamer", "feel-camp", "groups", params.id),
-        {
-          bad: arrayUnion($group.joined[i]),
-          joined: arrayRemove($group.joined[i]),
-        }
-      );
-    // assign good players
-    for (let i = 0; i < goodCount; i++)
-      await updateDoc(
-        doc(firestore, "cyc-young-dreamer", "feel-camp", "groups", params.id),
-        {
-          good: arrayUnion($group.joined[goodCount - i - 1]),
-          joined: arrayRemove($group.joined[goodCount - i - 1]),
-        }
-      );
+      await updateDoc(groupRef, {
+        bad: arrayUnion($group.joined[i]),
+        joined: arrayRemove($group.joined[i]),
+      });
 
     gameStart = true;
   };
 
   const handleReset = () => {
-    updateDoc(
-      doc(firestore, "cyc-young-dreamer", "feel-camp", "groups", params.id),
-      {
-        bad: [],
-        good: [],
-        joined: [],
-      }
-    );
+    updateDoc(groupRef, {
+      bad: [],
+      good: [],
+      joined: [],
+    });
     user.set({ name: "" });
     modalOpen = true;
   };
@@ -102,29 +107,26 @@
 
   onMount(() => {
     // listen to realtime updates from group
-    const unsub = onSnapshot(
-      doc(firestore, "cyc-young-dreamer", "feel-camp", "groups", params.id),
-      async (snapshot) => {
-        // push to 404 if group not found
-        if (!snapshot.exists()) {
-          replace("/404");
-          return;
-        }
-        group.set(GroupSchema.parse(snapshot.data()));
-        // check if gameStarted
-        gameStart = !($group.bad.length === 0 && $group.good.length === 0);
-        // start the game if all players are in the room and the game is not started
-        if ($group.maxPlayers - $group.joined.length <= 0 && !gameStart)
-          await handleGameStart();
-        // sync with local data
-        if ($user.name) handleJoinRoom();
-        // assign role to user
-        if ($group.bad.find((p) => p === $user.name) !== undefined)
-          $user.role = "bad";
-        else if ($group.good.find((p) => p === $user.name) !== undefined)
-          $user.role = "good";
+    const unsub = onSnapshot(groupRef, async (snapshot) => {
+      // push to 404 if group not found
+      if (!snapshot.exists()) {
+        replace("/404");
+        return;
       }
-    );
+      group.set(GroupSchema.parse(snapshot.data()));
+      // check if gameStarted
+      gameStart = !($group.bad.length === 0 && $group.good.length === 0);
+      // start the game if all players are in the room and the game is not started
+      if ($group.maxPlayers - $group.joined.length <= 0 && !gameStart)
+        await handleGameStart();
+      // sync with local data
+      if ($user.name) handleJoinRoom();
+      // assign role to user
+      if ($group.bad.find((p) => p === $user.name) !== undefined)
+        $user.role = "bad";
+      else if ($group.good.find((p) => p === $user.name) !== undefined)
+        $user.role = "good";
+    });
 
     // force user to join room on first visit
     if ($user.name === "") modalOpen = true;
